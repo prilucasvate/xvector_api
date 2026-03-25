@@ -1,0 +1,3 @@
+{"path": "data/wavs/speaker_01/utt_001.wav", "spk_id": "speaker_01", "split": "train"}
+{"path": "data/wavs/speaker_01/utt_002.wav", "spk_id": "speaker_01", "split": "test_closed"}
+{"path": "data/wavs/speaker_02/utt_001.wav", "spk_id": "speaker_02", "split": "test_open"}
