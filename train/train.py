@@ -157,9 +157,6 @@ def train():
         collate_fn=DynamicCollate(augment=True, musan_path=MUSAN_PATH) # 訓練做增強
     )
     
-    
-    
-
     # 從 Dataset 取得語者總數 
     num_classes = train_dataset.num_classes
     print(f"[Train] Total Speakers (Classes): {num_classes}")

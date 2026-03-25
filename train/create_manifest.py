@@ -1,7 +1,7 @@
 import os
 import json
 import random
-import torchaudio
+import soundfile as sf
 
 # ================= 設定區 =================
 DATA_DIR = "data/wavs"               # 音檔總目錄 (裡面要是語者名稱的子資料夾)
@@ -38,9 +38,8 @@ def create_manifest():
                 
                 # --- check ---
                 try:
-                    # 使用 torchaudio.info 只讀取標頭
-                    info = torchaudio.info(filepath)
-                    duration = info.num_frames / info.sample_rate
+                    info = sf.info(filepath)
+                    duration = info.duration  # soundfile 直接提供秒數
                     
                     if duration < MIN_DURATION_SEC:
                         stats_short_audio += 1
