@@ -12,7 +12,7 @@
 * Loss Function: 使用 ArcFace (AAM-Softmax)，在 512 維上最大化間距。
 * Performance: 在語者資料集測試中達到約 5.48% EER。
 ## 目錄
-.
+.  
 ├── api/                    # API 相關  
 │   ├── app.py              # FastAPI 主程式  
 │   ├── inference.py        # 推論核心  
