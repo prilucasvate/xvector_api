@@ -18,10 +18,9 @@ app = FastAPI(
 # 這裡的 NUM_CLASSES 跟訓練這顆權重時的語者總數完全一致！
 NUM_CLASSES = int(os.getenv("NUM_CLASSES", 2682)) # 預設 v7 2682，根據訓練集調整
 MODEL_PATH = os.getenv("MODEL_PATH", "weights/best_model_plus_v7.pth")
-
 print("[API] Starting API server...")
 try:
-    # 啟動伺服器時，把模型常駐在記憶體或顯卡裡待命
+    # 啟動伺服器時，把模型常駐在記憶體或顯卡裡
     encoder = SpeakerEncoder(model_path=MODEL_PATH, num_classes=NUM_CLASSES)
 except Exception as e:
     print(f"[API] Model loading failed! Please check the path and num_classes. Error: {e}")
@@ -68,8 +67,8 @@ async def compare_speakers(file1: UploadFile = File(...), file2: UploadFile = Fi
         # 計算 Cosine Similarity (抽出時已經做過 L2 正規化，直接做內積)
         cos_sim = float(np.dot(vec1, vec2))
         
-        # 設定一個信心閾值，大於這個值就判斷為同一人 (建議根據你的 EER 圖表最佳閾值來調整)
-        threshold = 0.80
+        # 設定一個閾值，大於這個值就判斷為同一人 (根據你的 EER 圖表最佳閾值來調整)
+        threshold = 0.81
         
         return {
             "file1": file1.filename,

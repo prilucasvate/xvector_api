@@ -17,7 +17,6 @@ class SpeakerEncoder:
     def __init__(self, model_path, num_classes, input_dim=80):
         """
         初始化 X-vector 特徵提取器。
-        注意：即使推論時不需要分類，載入權重時仍必須提供與訓練時相同的 num_classes。
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.sample_rate = 16000
@@ -28,7 +27,7 @@ class SpeakerEncoder:
         self.model = XVector(num_classes=num_classes, input_dim=input_dim).to(self.device)
         self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
         
-        # 切換到推論模式，確保關閉 Dropout 與 ReLU
+        # 切換到推論模式，關閉 Dropout 與 ReLU
         self.model.eval() 
         print(f"[Inference] Model state : {'Training' if self.model.training else 'Eval (No ReLU)'}")
 

@@ -34,7 +34,7 @@ torch.manual_seed(42)
 random.seed(42)
 np.random.seed(42)
 
-# 動態算 EER 的雷達函數
+# 動態算 EER 
 # ==========================================
 def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
     """每個 Epoch 結束時，隨機抽幾個人算 EER 當作真實的指標"""
@@ -50,10 +50,10 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
             if item.get('split') == 'test_closed':
                 test_data[item['spk_id']].append(item['path'])
                 
-    # 2. 隨機抽人與抽句子
+    # 2. 隨機抽人抽句子
     spk_ids = random.sample(list(test_data.keys()), min(num_spks_to_test, len(test_data)))
     
-    # 我們需要用到 DataLoader 裡讀取和 RMS 的邏輯，所以實例化一個輕量版的 collate
+    
     collate = DynamicCollate(augment=False) 
     
     embeddings = {}
@@ -64,7 +64,7 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
             
             vecs = []
             for path in selected_utts:
-                # 這裡手動讀取音檔並過 RMS (與推論邏輯一致)
+                # 這裡手動讀取音檔過 RMS 
                 data, sr = sf.read(path)
                 wav = torch.from_numpy(data).float()
                 if wav.ndim == 1: wav = wav.unsqueeze(0)
@@ -74,14 +74,14 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
                 if wav.shape[0] > 1: wav = torch.mean(wav, dim=0, keepdim=True)
                 wav = wav.squeeze(0)
                 
-                # 關鍵：加上 RMS 標準化
+                # 加上 RMS 標準化
                 wav = collate.normalize_rms(wav)
                 
                 # 丟進模型抽特徵
                 wav = wav.unsqueeze(0).to(DEVICE)
                 _, embedding = model(wav)
                 
-                # 轉 numpy 並 L2 正規化
+                # 轉 numpy L2 正規化
                 vec = embedding.cpu().numpy()[0]
                 vec = vec / np.linalg.norm(vec)
                 vecs.append(vec)
@@ -89,7 +89,7 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
             if len(vecs) >= 2:
                 embeddings[spk] = vecs
 
-    # 3. 產生配對並算 Cosine Similarity
+    # 3. 產生配對算 Cosine Similarity
     labels = []
     scores = []
     spk_list = list(embeddings.keys())
@@ -118,7 +118,7 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
         model.train() # 恢復訓練模式
 
     # 4. 計算 EER
-    if not labels: # 如果資料不夠防呆
+    if not labels: # 如果資料不夠
         return 100.0
         
     fpr, tpr, thresholds = roc_curve(labels, scores)

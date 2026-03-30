@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio.transforms as T
 
-# x → MelSpectrogram → dB → TDNN1~5 → Stats Pooling → fc6 → fc7 → embedding → ArcFace
+# x → MelSpectrogram → dB → TDNN1~5 → Stats Pooling → fc → embedding → ArcFace
 
 #  --- AAM-Softmax (ArcFace) ---
 # 取代fc8的全連接層，改成ArcMarginProduct，讓模型在訓練時學習到更有區分度的特徵空間
@@ -40,7 +40,7 @@ class ArcMarginProduct(nn.Module):
         # |W||X|cos(theta) -> cos(theta)
         cosine = F.linear(F.normalize(input), F.normalize(self.weight))
         
-        # 如果沒有傳入 label (在評估測試時)，直接回傳縮放後的餘弦相似度
+        # 如果沒有傳入 label (在評估測試時)，直接回傳縮放後的相似度
         if label is None:
             return cosine * self.s
             
@@ -168,7 +168,7 @@ class AttentiveStatisticsPooling(nn.Module):
         mean = torch.sum(alphas * x, dim=2)
         
         # 4. 計算加權標準差 (Weighted Standard Deviation)
-        # 數學公式: sqrt( sum(alpha * x^2) - mean^2 )
+        # 公式: sqrt( sum(alpha * x^2) - mean^2 )
         # torch.clamp 加上 1e-6 是為了數值穩定性，防止 sqrt(0) 產生 NaN 導致模型崩潰
         var = torch.sum(alphas * (x ** 2), dim=2) - (mean ** 2)
         std = torch.sqrt(torch.clamp(var, min=1e-6))

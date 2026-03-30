@@ -28,7 +28,7 @@ class SpeakerDataset(Dataset):
             if item['split'] in ['train', 'test_closed']:
                 valid_spks.add(item['spk_id'])
                 
-        # 建立純淨的全域語者字典
+        # 建立的全域語者字典
         all_spks = sorted(list(valid_spks))
         self.spk2idx = {spk: i for i, spk in enumerate(all_spks)}
         self.num_classes = len(all_spks)
@@ -40,7 +40,7 @@ class SpeakerDataset(Dataset):
 
         print(f"[Dataset] {split} set loaded. Dict Classes: {self.num_classes}, Samples: {len(self.data)}")
 
-    # 3. 定義 __len__ 和 __getitem__ 供 DataLoader 使用
+    # 3. 定義 __len__ 和 __getitem__  給 DataLoader 使用
     def __len__(self):
         return len(self.data) # 回傳資料集的總樣本數量
 
@@ -52,7 +52,7 @@ class SpeakerDataset(Dataset):
         # 根據 spk_id 取得對應的數字 label
         label = self.spk2idx.get(item['spk_id'], -1)    
 
-        # 加入防呆：如果是 train 或 test_closed 階段，卻找不到 label，直接報錯
+        # 如果是 train 或 test_closed 階段，卻找不到 label，直接報錯
         if label == -1 and item['split'] in ['train', 'test_closed']:
             raise ValueError(f"[Dataset] Error : cannot find corresponding ID for speaker {item['spk_id']} ! Please regenerate manifest.jsonl")
 
@@ -105,7 +105,7 @@ class DynamicCollate:
                             self.musan_wavs.append(os.path.join(root, file))
                 print(f"[Dataset] Successfully loaded {len(self.musan_wavs)} noise files for augmentation!")
             else:
-                # 開啟了增強，卻找不到檔案！
+                # 開啟了增強，找不到檔案
                 print(f"[Dataset] Warning: augment=True is enabled but MUSAN directory '{musan_path}' not found! Training will be conducted without noise augmentation!")
 
 
@@ -182,7 +182,7 @@ class DynamicCollate:
                 # 算出需要重複幾次才夠長 (例如 1.5 秒要塞滿 4 秒，就重複 3 次)
                 repeats = (batch_length // seq_len) + 1
                 w = w.repeat(repeats)
-                # 然後精準裁切到我們要的長度
+                # 然後裁切到我們要的長度
                 w = w[:batch_length]
                 
             # 1. 語音能量標準化 (RMS)   # 其實放在最後加噪音後再做一次標準化會更合理，確保不會因為加噪音而爆音
