@@ -13,18 +13,19 @@
 * Performance: 在語者資料集測試中達到約 5.48% EER。
 ## 目錄
 .
-├── api/                    # API 相關
-│   ├── app.py              # FastAPI 主程式
-│   ├── inference.py        # 推論核心
-│   └── weights/            # 存放訓練好的模型 (.pth)
-├── train/                  # 訓練相關
-│   ├── data/               # 存放 manifest.jsonl 與 wav 原始檔
-│   ├── create_manifest.py  # 資料集檢驗和切分
-│   ├── dataset.py          # DataLoader 和資料增強 (MUSAN)
-│   ├── model.py            # X-Vector 主模型
-│   └── train.py            # 主訓練腳本 (EER 驗證)
-├── Dockerfile              # 容器部署設定
-└── requirements.txt        # 環境清單
+├── api/                    # API 相關  
+│   ├── app.py              # FastAPI 主程式  
+│   ├── inference.py        # 推論核心  
+│   └── weights/            # 存放訓練好的模型 (.pth)  
+├── train/                  # 訓練相關  
+│   ├── data/               # 存放 manifest.jsonl 與 wav 原始檔  
+│   ├── create_manifest.py  # 資料集檢驗和切分  
+│   ├── dataset.py          # DataLoader 和資料增強 (MUSAN)  
+│   ├── model.py            # X-Vector 主模型  
+│   └── train.py            # 主訓練腳本 (EER 驗證)  
+├── Dockerfile              # 容器部署設定  
+└── requirements.txt        # 環境清單  
+
 ## 使用說明
 1. 環境準備
 建議使用 Python 3.11+ 以及 CUDA 支援的環境：
