@@ -16,6 +16,7 @@
 
 ## Local Audio Layout
 若使用 create_manifest.py 產生自備資料集 manifest，請將音檔放成：
+```text
 data/wavs/
 ├── speaker_01/
 │   ├── utt_001.wav
@@ -23,3 +24,4 @@ data/wavs/
 └── speaker_02/  
     ├── utt_001.wav
     └── utt_002.wav
+```

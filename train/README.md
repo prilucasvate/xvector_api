@@ -45,15 +45,17 @@ pip install -r ../requirements.txt
 
 ## 3. 使用自備資料產生 Manifest
 請準備您的語音資料夾，架構如下：
-data/wavs/
-├── speaker_01/
-│   ├── utt_001.wav
-│   ├── utt_002.wav
-│   └── ...
-└── speaker_02/
-    ├── utt_001.wav
-    ├── utt_002.wav
-    └── ...
+```text
+data/wavs/  
+├── speaker_01/  
+│   ├── utt_001.wav  
+│   ├── utt_002.wav  
+│   └── ...  
+└── speaker_02/  
+    ├── utt_001.wav  
+    ├── utt_002.wav  
+    └── ...  
+```
 * 接著產生訓練用的 JSONL Manifest，這將過濾過短的音檔並切分 Train/Val/Test 集：
 
 ```bash
