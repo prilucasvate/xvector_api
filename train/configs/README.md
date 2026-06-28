@@ -35,6 +35,21 @@ augmentation:
 * musan_path：MUSAN noise 資料夾路徑。
 * rir_path：預處理後的 RIR cache 路徑。
 若兩者皆為 null，則不使用 MUSAN/RIR 資料增強。
+#### RIR Cache 說明
+`rir_path` 不是 RIR 資料夾，而是預先處理好的 PyTorch cache 檔。  
+本專案的訓練程式會讀取：
+```python
+torch.load(rir_path)["rir_tensors"]
+```
+其中 rir_tensors 是多個 (預設3000個) 已轉為 16 kHz、單聲道、正規化後的 RIR tensor。  
+可以透過以下指令產生 RIR cache：
+```bash
+python create_rir_cache.py \
+  --rir-root <RIR 資料夾> \
+  --output <RIR cache 路徑> \
+  --num-rirs <產生 RIR 數量> 
+```
+#### 評估
 ```yaml
 evaluation:
   checkpoint: outputs/v14/best_model_plus_v14.pth
