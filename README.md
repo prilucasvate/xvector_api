@@ -37,7 +37,7 @@
     pip install -r requirements.txt
     ```
 2. 訓練與評估
-    詳細訓練流程請見：'[train/README.md](train/README.md)
+    詳細訓練流程請見：[train/README.md](train/README.md)
 
     快速訓練：
     ```bash
@@ -66,9 +66,9 @@
     ```
 
 3. 啟動 API 服務
-將訓練好的 best_model.pth 放入 api/weights/，執行：
-```
-cd api
-python app.py
-```
-啟動後，開啟 http://localhost:8000/docs 即可進入測試介面。
+    將訓練好的 best_model.pth 放入 api/weights/，執行：
+    ```
+    cd api
+    python app.py
+    ```
+    啟動後，開啟 http://localhost:8000/docs 即可進入測試介面。
