@@ -1,133 +1,151 @@
-import os
+import argparse
 import json
 import random
+from pathlib import Path
+
 import soundfile as sf
 
-# ================= 設定區 =================
-DATA_DIR = "data/wavs"               # 音檔總目錄 (裡面要是語者名稱的子資料夾)
-OUTPUT_JSONL = "data/manifest.jsonl" # 輸出的清單路徑
+# 參數
+MIN_DURATION_SEC = 2.0 # 最短音檔限制：2 秒
+MIN_UTTERANCES = 15 # 每個語者最少需要的有效音檔數
+VAL_SPK_RATIO = 0.1
+TEST_SPK_RATIO = 0.1
+SEED = 42
 
-MIN_DURATION_SEC = 2.0  # 最短音檔限制：2 秒
-MIN_UTTERANCES = 15     # 每個語者最少需要的有效音檔數 (不夠的人直接刪除)
-OPEN_SET_RATIO = 0.1    # 10% 的語者作為完全未知的測試集 (Test_Open)
-TRAIN_RATIO = 0.9       # 剩餘語者中，90% 拿來 Train，10% 拿來 Test_Closed
-SEED = 42               # 亂數種子，確保每次切分結果一致
-# =========================================
 
-def create_manifest():
-    if not os.path.exists(DATA_DIR):
-        print(f"[Create] can't find directory: {DATA_DIR} . Please check the path and try again.")
-        return
+def parse_args():
+    parser = argparse.ArgumentParser(description="Create a JSONL manifest from speaker folders")
+    parser.add_argument("--data-dir", default="data/wavs", help="Root folder containing speaker subfolders")
+    parser.add_argument("--output", default="data/manifest.jsonl", help="Output JSONL manifest path")
+    parser.add_argument("--min-duration", type=float, default=MIN_DURATION_SEC)
+    parser.add_argument("--min-utterances", type=int, default=MIN_UTTERANCES)
+    parser.add_argument("--val-ratio", type=float, default=VAL_SPK_RATIO)
+    parser.add_argument("--test-ratio", type=float, default=TEST_SPK_RATIO)
+    parser.add_argument("--seed", type=int, default=SEED)
+    return parser.parse_args()
 
-    spk2data = {}
-    stats_short_audio = 0
-    broken_files = 0
 
-    print(f"[Create] Starting recursive scan and inspection of audio files...")
-    
-    # 遍歷資料夾 (data/wavs/speaker_01/xxx.wav)
-    for spk_id in os.listdir(DATA_DIR):
-        spk_dir = os.path.join(DATA_DIR, spk_id)
-        if not os.path.isdir(spk_dir):
+def collect_audio(data_dir, min_duration):
+    data_dir = Path(data_dir)
+    spk2items = {}
+    short_count = 0
+    broken_count = 0
+
+    if not data_dir.exists():
+        raise FileNotFoundError(f"Data directory not found: {data_dir}")
+
+    for spk_dir in sorted(data_dir.iterdir()):
+        if not spk_dir.is_dir():
             continue
-            
-        spk2data[spk_id] = []
-        for file in os.listdir(spk_dir):
-            if file.endswith(('.wav', '.flac')):
-                filepath = os.path.join(spk_dir, file)
-                
-                # --- check ---
-                try:
-                    info = sf.info(filepath)
-                    duration = info.duration  # soundfile 直接提供秒數
-                    
-                    if duration < MIN_DURATION_SEC:
-                        stats_short_audio += 1
-                        continue # 太短，丟掉！
-                        
-                    spk2data[spk_id].append({
-                        "path": filepath,
-                        "spk_id": spk_id,
-                        "duration": round(duration, 4)
-                    })
-                except Exception as e:
-                    broken_files += 1
-                    print(f"[Create] Error occurred while processing {filepath}: {e}")
-                # ---  ---
 
-    print("\n=== Filtering and Splitting ===")
-    valid_spks = {}
-    stats_skipped_spks = 0
-    
-    # 每個語者至少要有 MIN_UTTERANCES 句話
-    for spk_id, items in spk2data.items():
-        if len(items) >= MIN_UTTERANCES:
-            valid_spks[spk_id] = items
+        spk_id = spk_dir.name
+        spk2items[spk_id] = []
+
+        audio_files = sorted(
+            list(spk_dir.rglob("*.wav"))
+        )
+
+        for audio_path in audio_files:
+            try:
+                info = sf.info(str(audio_path))
+                duration = round(float(info.duration), 4)
+
+                if duration < min_duration:
+                    short_count += 1
+                    continue
+
+                rel_path = audio_path.relative_to(data_dir).as_posix()
+                uid = f"{spk_id}_{audio_path.stem}"
+
+                spk2items[spk_id].append({
+                    "uid": uid,
+                    "spk_id": spk_id,
+                    "path": rel_path,
+                    "source": "custom",
+                    "split": None,
+                    "duration": duration,
+                })
+            except Exception as exc:
+                broken_count += 1
+                print(f"[WARN] Skip broken file: {audio_path} | {exc}")
+
+    return spk2items, short_count, broken_count
+
+
+def split_by_speaker(spk2items, min_utterances, val_ratio, test_ratio, seed):
+    valid_spks = [
+        spk for spk, items in spk2items.items()
+        if len(items) >= min_utterances
+    ]
+
+    if len(valid_spks) < 3:
+        raise ValueError(
+            "需要至少 3 個有效語者才能建立訓練/驗證/測試集。"
+            "Lower --min-utterances or add more speaker folders."
+        )
+
+    random.seed(seed)
+    random.shuffle(valid_spks)
+
+    num_spks = len(valid_spks)
+    test_count = max(1, int(num_spks * test_ratio))
+    val_count = max(1, int(num_spks * val_ratio))
+
+    test_spks = set(valid_spks[:test_count])
+    val_spks = set(valid_spks[test_count:test_count + val_count])
+    train_spks = set(valid_spks[test_count + val_count:])
+
+    if not train_spks:
+        raise ValueError("沒有剩餘訓練語者。請降低驗證/測試比例。")
+
+    final_items = []
+    for spk in valid_spks:
+        if spk in test_spks:
+            split = "test"
+        elif spk in val_spks:
+            split = "val"
         else:
-            stats_skipped_spks += 1
+            split = "train"
 
-    if not valid_spks:
-        print(f"[Create] No speakers meet the requirement of at least {MIN_UTTERANCES} utterances! Please check your dataset and try again.")
-        return
+        for item in spk2items[spk]:
+            item["split"] = split
+            final_items.append(item)
 
-    # 準備切分 Open-set 與 Closed-set
-    all_valid_spk_ids = sorted(list(valid_spks.keys()))
-    random.seed(SEED)
-    random.shuffle(all_valid_spk_ids)
+    return final_items, train_spks, val_spks, test_spks
 
-    # 抽出 10% 的人當作完全陌生的 Open-set
-    num_open_spks = max(1, int(len(all_valid_spk_ids) * OPEN_SET_RATIO))
-    open_set_spks = set(all_valid_spk_ids[:num_open_spks])
 
-    final_data = []
-    for spk_id, items in valid_spks.items():
-        if spk_id in open_set_spks:
-            # 這些人不參與訓練，全部標記為 test_open
-            for it in items:
-                it['split'] = 'test_open'
-                final_data.append(it)
-        else:
-            # 參與訓練的人 (Closed-set)
-            random.shuffle(items)
-            split_idx = int(len(items) * TRAIN_RATIO)
-            # 確保至少有一句話拿來做 test_closed 算 EER
-            if len(items) - split_idx < 1:
-                split_idx = len(items) - 1
+def main():
+    args = parse_args()
 
-            for it in items[:split_idx]:
-                it['split'] = 'train'
-                final_data.append(it)
-            for it in items[split_idx:]:
-                it['split'] = 'test_closed'
-                final_data.append(it)
+    spk2items, short_count, broken_count = collect_audio(
+        args.data_dir,
+        args.min_duration,
+    )
 
-    # 寫入 JSONL
-    os.makedirs(os.path.dirname(OUTPUT_JSONL), exist_ok=True)
-    with open(OUTPUT_JSONL, 'w', encoding='utf-8') as f:
-        for item in final_data:
-            f.write(json.dumps(item, ensure_ascii=False) + '\n')
+    final_items, train_spks, val_spks, test_spks = split_by_speaker(
+        spk2items,
+        args.min_utterances,
+        args.val_ratio,
+        args.test_ratio,
+        args.seed,
+    )
 
-    # 統計數據
-    train_count = sum(1 for x in final_data if x['split'] == 'train')
-    test_closed_count = sum(1 for x in final_data if x['split'] == 'test_closed')
-    test_open_count = sum(1 for x in final_data if x['split'] == 'test_open')
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print("\n" + "="*50)
-    print("      X-VECTOR DATASET REPORT      ")
-    print("="*50)
-    print(f"Too short (<{MIN_DURATION_SEC}s) removed audio files: {stats_short_audio} files")
-    print(f"Broken audio files:           {broken_files} files")
-    print(f"Speakers skipped (insufficient utterances): {stats_skipped_spks} persons")
-    print("-" * 50)
-    print(f"Total Speakers: {len(valid_spks)} persons")
-    print(f"  ├─ Closed-set : {len(valid_spks) - len(open_set_spks)} persons")
-    print(f"  └─ Open-set :   {len(open_set_spks)} persons")
-    print("-" * 50)
-    print(f"Dataset Distribution:")
-    print(f"  ├─ Train :       {train_count}")
-    print(f"  ├─ Test_closed : {test_closed_count}")
-    print(f"  └─ Test_open :   {test_open_count}")
-    print("="*50)
+    with output_path.open("w", encoding="utf-8") as f:
+        for item in final_items:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+    print("\n=== Manifest Report ===")
+    print(f"Output: {output_path}")
+    print(f"Total samples: {len(final_items)}")
+    print(f"Train speakers: {len(train_spks)}")
+    print(f"Val speakers: {len(val_spks)}")
+    print(f"Test speakers: {len(test_spks)}")
+    print(f"Too short files removed: {short_count}")
+    print(f"Broken files skipped: {broken_count}")
+
 
 if __name__ == "__main__":
-    create_manifest()
+    main()

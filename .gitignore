@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+env/
+
+# outputs
+outputs/
+*.log
+
+# datasets
+*.wav
+
+train/configs/debug.yaml
+train/configs/mine.yaml
+.env

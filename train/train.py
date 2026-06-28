@@ -12,6 +12,9 @@ import torchaudio
 import os
 import csv
 import time
+import argparse
+import yaml
+from pathlib import Path
 # 引入新版模組
 from dataset import SpeakerDataset, DynamicCollate
 from model import XVector
@@ -23,20 +26,35 @@ BATCH_SIZE = 256
 LEARNING_RATE = 0.001
 NUM_EPOCHS = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-JSONL_PATH = "data/manifest.jsonl"  
-run_id = time.strftime("%Y%m%d_%H%M%S")
-MODEL_SAVE_PATH = f"best_model_{run_id}.pth"
-LOG_FILE = f"train_log_{run_id}.csv"
-MUSAN_PATH = "data/musan"
-NUM_WORKERS = int(os.getenv("NUM_WORKERS", 4)) # 預設 4
+DEFAULT_MANIFEST = "data/manifest.jsonl"
+DEFAULT_OUTPUT_DIR = "outputs"
+NUM_WORKERS = int(os.getenv("NUM_WORKERS", 4))
 
-torch.manual_seed(42)
-random.seed(42)
-np.random.seed(42)
+seed = train_cfg.get("seed", 42)
+torch.manual_seed(seed)
+random.seed(seed)
+np.random.seed(seed)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train v14")
+    parser.add_argument("--config", default="./configs/v14.yaml")
+    return parser.parse_args()
+
+
+def load_config(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def resolve_audio_path(path, data_root=None):
+    wav_path = Path(path)
+    if data_root is not None and not wav_path.is_absolute():
+        wav_path = Path(data_root) / wav_path
+    return wav_path
 
 # 動態算 EER 
 # ==========================================
-def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
+def evaluate_eer(model, test_jsonl, data_root=None, split="val", num_spks_to_test=20, utts_per_spk=5):
     """每個 Epoch 結束時，隨機抽幾個人算 EER 當作真實的指標"""
 
     was_training = model.training # 記住模型進來時的狀態
@@ -47,7 +65,7 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
     with open(test_jsonl, 'r', encoding='utf-8') as f:
         for line in f:
             item = json.loads(line.strip())
-            if item.get('split') == 'test_closed':
+            if item.get('split') == split:
                 test_data[item['spk_id']].append(item['path'])
                 
     # 2. 隨機抽人抽句子
@@ -65,7 +83,8 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
             vecs = []
             for path in selected_utts:
                 # 這裡手動讀取音檔過 RMS 
-                data, sr = sf.read(path)
+                wav_path = resolve_audio_path(path, data_root)
+                data, sr = sf.read(str(wav_path))
                 wav = torch.from_numpy(data).float()
                 if wav.ndim == 1: wav = wav.unsqueeze(0)
                 else: wav = wav.transpose(0, 1)
@@ -128,10 +147,34 @@ def evaluate_eer(model, test_jsonl, num_spks_to_test=20, utts_per_spk=5):
     
     return eer * 100.0 # 回傳百分比
 
-def train():
+def train(args):
+
+    cfg = load_config(args.config)
+
+    manifest = cfg["data"]["manifest"]
+    data_root = cfg["data"].get("data_root")
+    output_dir = cfg["output"]["dir"]
+
+    train_cfg = cfg["training"]
+    aug_cfg = cfg.get("augmentation", {})
+
+    epochs = train_cfg["epochs"]
+    batch_size = train_cfg["batch_size"]
+    lr = train_cfg["learning_rate"]
+    num_workers = train_cfg["num_workers"]
+    weight_decay = train_cfg.get("weight_decay", 0.0001)
+
+    musan_path = aug_cfg.get("musan_path")
+    rir_path = aug_cfg.get("rir_path")
+
+    os.makedirs(output_dir, exist_ok=True)
+    run_id = time.strftime("%Y%m%d_%H%M%S")
+    model_save_path = os.path.join(output_dir, f"best_model_plus_v14_{run_id}.pth")
+    log_file = os.path.join(output_dir, f"train_log_plus_v14_{run_id}.csv")
+
     # 1. CSV title for logging
-    if not os.path.exists(LOG_FILE):
-        with open(LOG_FILE, 'w', newline='') as f:
+    if not os.path.exists(log_file):
+        with open(log_file, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(['epoch', 'loss', 'train_acc', 'EER', 'lr'])
 
@@ -139,22 +182,26 @@ def train():
     # ==========================================
     # 2. 準備資料 
     # ==========================================
-    print(f"[Train] Loading data from {JSONL_PATH}...")
+    print(f"[Train] Loading data from {manifest}...")
     
     # 建立訓練集與測試集
     # 在 dataloader.py 會根據 split 篩選
-    train_dataset = SpeakerDataset(JSONL_PATH, split='train')
-    # test_dataset = SpeakerDataset(JSONL_PATH, split='test_closed')  # use eer
+    train_dataset = SpeakerDataset(manifest, split='train', data_root=data_root)
+    # Validation EER is computed from split='val' in the manifest.
 
     # DataLoader 把資料打包成 Batch
     # 加入 collate_fn=collate_fn_dynamic
     train_loader = DataLoader(
-        train_dataset, 
-        batch_size=BATCH_SIZE, 
-        shuffle=True, 
-        num_workers=NUM_WORKERS, 
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
         pin_memory=True,
-        collate_fn=DynamicCollate(augment=True, musan_path=MUSAN_PATH) # 訓練做增強
+        collate_fn=DynamicCollate(
+            augment=musan_path is not None or rir_path is not None,
+            musan_path=musan_path,
+            rir_path=rir_path,
+        )
     )
     
     # 從 Dataset 取得語者總數 
@@ -167,7 +214,7 @@ def train():
     model = XVector(num_classes=num_classes).to(DEVICE)
     criterion = nn.CrossEntropyLoss() # ArcFace 已經嚴格，不再 label_smoothing
     # Adam + Weight Decay: 防止死背訓練集
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay= 0.0001) #1e-4
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay) #1e-4
     # ReduceLR: 當測試卡住時 自動降低LR
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=5
@@ -177,7 +224,7 @@ def train():
     # ==========================================
     # 4. 訓練
     # ==========================================
-    for epoch in range(NUM_EPOCHS):
+    for epoch in range(epochs):
         model.train() # 訓練模式
         running_loss = 0.0
         correct = 0
@@ -205,7 +252,7 @@ def train():
 
             # 每 20 個 batch 顯示一次訓練狀態
             if (batch_idx + 1) % 20 == 0: 
-                print(f"Epoch [{epoch+1}/{NUM_EPOCHS}], Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
+                print(f"Epoch [{epoch+1}/{epochs}], Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
 
         # --- 計算這一個 Epoch 的平均數據 ---
         avg_loss = running_loss / len(train_loader) # 平均 Loss
@@ -216,27 +263,33 @@ def train():
         # ==========================================
         print("Calculating Validation EER...")
         # 每次抽 20 個人，每個人抽 5 句話
-        val_eer = evaluate_eer(model, JSONL_PATH, num_spks_to_test=50, utts_per_spk=5)
-        
+        val_eer = evaluate_eer(
+            model,
+            manifest,
+            data_root=data_root,
+            split="val",
+            num_spks_to_test=50,
+            utts_per_spk=5,
+        )
         scheduler.step(val_eer) # 根據 EER 決定要不要降學習率
 
         is_best = False
         if val_eer < best_eer:
             best_eer = val_eer
-            torch.save(model.state_dict(), MODEL_SAVE_PATH)
+            torch.save(model.state_dict(), model_save_path)
             is_best = True
 
         current_lr = optimizer.param_groups[0]['lr']
-        print(f"Epoch [{epoch+1}/{NUM_EPOCHS}] Loss: {avg_loss:.4f} | Train Acc: {train_acc:.2f}% | EER: {val_eer:.2f}% | Best EER: {best_eer:.2f}% | LR: {current_lr}")
+        print(f"Epoch [{epoch+1}/{epochs}] Loss: {avg_loss:.4f} | Train Acc: {train_acc:.2f}% | EER: {val_eer:.2f}% | Best EER: {best_eer:.2f}% | LR: {current_lr}")
 
         if is_best:
             print(f"!!! New Best Model Saved with EER: {best_eer:.2f}% !!!\n")
 
-        with open(LOG_FILE, 'a', newline='') as f:
+        with open(log_file, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([epoch+1, avg_loss, train_acc, val_eer, current_lr])
 
     print(f"\nfinish! lowest EER is: {best_eer:.2f}%")
 
 if __name__ == "__main__":
-    train()
+    train(parse_args())

@@ -1,3 +1,6 @@
-{"path": "data/wavs/speaker_01/utt_001.wav", "spk_id": "speaker_01", "duration": 13.6533, "split": "train"}
-{"path": "data/wavs/speaker_01/utt_002.wav", "spk_id": "speaker_01", "duration": 12.4567, "split": "test_closed"}
-{"path": "data/wavs/speaker_02/utt_001.wav", "spk_id": "speaker_02", "duration": 15.7890, "split": "test_open"}
+{"uid":"sample_spk01_utt001","spk_id":"sample_spk01","path":"sample_spk01/utt_001.wav","text":"","source":"sample","split":"train","duration":3.2}
+{"uid":"sample_spk01_utt002","spk_id":"sample_spk01","path":"sample_spk01/utt_002.wav","text":"","source":"sample","split":"val","duration":3.1}
+{"uid":"sample_spk01_utt003","spk_id":"sample_spk01","path":"sample_spk01/utt_003.wav","text":"","source":"sample","split":"test","duration":3.0}
+{"uid":"sample_spk02_utt001","spk_id":"sample_spk02","path":"sample_spk02/utt_001.wav","text":"","source":"sample","split":"train","duration":3.4}
+{"uid":"sample_spk02_utt002","spk_id":"sample_spk02","path":"sample_spk02/utt_002.wav","text":"","source":"sample","split":"val","duration":3.2}
+{"uid":"sample_spk02_utt003","spk_id":"sample_spk02","path":"sample_spk02/utt_003.wav","text":"","source":"sample","split":"test","duration":3.1}

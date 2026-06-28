@@ -8,20 +8,30 @@ from inference import SpeakerEncoder
 
 app = FastAPI(
     title="X-Vector Speaker Embedding API",
-    description="Zero-shot Speaker Embedding Extractor powered by V7 Architecture",
-    version="1.0.0"
+    description="Zero-shot Speaker Embedding Extractor powered by the v14 MFA model",
+    version="1.1.0"
 )
 
 # ==========================================
 # 參數設定與模型載入
 # ==========================================
 # 這裡的 NUM_CLASSES 跟訓練這顆權重時的語者總數完全一致！
-NUM_CLASSES = int(os.getenv("NUM_CLASSES", 2682)) # 預設 v7 2682，根據訓練集調整
-MODEL_PATH = os.getenv("MODEL_PATH", "weights/best_model_plus_v7.pth")
+NUM_CLASSES = int(os.getenv("NUM_CLASSES", 2384)) # v14/se_plus train speakers
+MODEL_PATH = os.getenv("MODEL_PATH", "weights/best_model_plus_v14.pth")
+THRESHOLD = float(os.getenv("THRESHOLD", 0.17))
+USE_SNORM = True
+COHORT_PATH ="weights/cohort_500_v13.npy"
+SNORM_THRESHOLD = 9.5
+
 print("[API] Starting API server...")
 try:
     # 啟動伺服器時，把模型常駐在記憶體或顯卡裡
-    encoder = SpeakerEncoder(model_path=MODEL_PATH, num_classes=NUM_CLASSES)
+    #encoder = SpeakerEncoder(model_path=MODEL_PATH, num_classes=NUM_CLASSES)
+    encoder = SpeakerEncoder(
+        model_path=MODEL_PATH,
+        num_classes=NUM_CLASSES,
+        cohort_path=COHORT_PATH if USE_SNORM else None,
+    )
 except Exception as e:
     print(f"[API] Model loading failed! Please check the path and num_classes. Error: {e}")
     encoder = None
@@ -65,16 +75,20 @@ async def compare_speakers(file1: UploadFile = File(...), file2: UploadFile = Fi
         vec2 = encoder.extract_embedding(bytes2)
         
         # 計算 Cosine Similarity (抽出時已經做過 L2 正規化，直接做內積)
-        cos_sim = float(np.dot(vec1, vec2))
-        
-        # 設定一個閾值，大於這個值就判斷為同一人 (根據你的 EER 圖表最佳閾值來調整)
-        threshold = 0.81
+        #cos_sim = float(np.dot(vec1, vec2))
+        scores = encoder.score(vec1, vec2)
+        score_for_decision = scores["snorm_score"] if USE_SNORM else scores["raw_score"]
+        threshold = SNORM_THRESHOLD if USE_SNORM else THRESHOLD
         
         return {
             "file1": file1.filename,
             "file2": file2.filename,
-            "similarity_score": round(cos_sim, 4), # 四捨五入到小數點後四位
-            "is_same_person": bool(cos_sim > threshold)
+            "similarity_score": round(scores["raw_score"], 4),
+            "snorm_score": None if scores["snorm_score"] is None else round(scores["snorm_score"], 4),
+            "score_type": "s_norm" if USE_SNORM else "raw_cosine",
+            "decision_score": round(score_for_decision, 4),
+            "threshold": threshold,
+            "is_same_person": bool(score_for_decision > threshold)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")

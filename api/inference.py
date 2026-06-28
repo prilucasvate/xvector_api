@@ -11,16 +11,16 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 train_dir = os.path.join(current_dir, '..', 'train')
 sys.path.append(train_dir)
 
-from model import XVector
+from se_model import XVector
 
 class SpeakerEncoder:
-    def __init__(self, model_path, num_classes, input_dim=80):
+    def __init__(self, model_path, num_classes, input_dim=80, cohort_path=None):
         """
         初始化 X-vector 特徵提取器。
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.sample_rate = 16000
-        
+        self.cohort_matrix = None
         print(f"[Inference] Initializing model on {self.device} ...")
         
         # 初始化模型並載入權重
@@ -30,6 +30,11 @@ class SpeakerEncoder:
         # 切換到推論模式，關閉 Dropout 與 ReLU
         self.model.eval() 
         print(f"[Inference] Model state : {'Training' if self.model.training else 'Eval (No ReLU)'}")
+        if cohort_path:
+            self.cohort_matrix = np.load(cohort_path)
+            cohort_norms = np.linalg.norm(self.cohort_matrix, axis=1, keepdims=True)
+            self.cohort_matrix = self.cohort_matrix / np.maximum(cohort_norms, 1e-12)
+            print(f"[Inference] Cohort matrix loaded: {self.cohort_matrix.shape}")
 
     def preprocess_audio(self, audio_bytes):
         """
@@ -84,3 +89,23 @@ class SpeakerEncoder:
         vec = vec / np.linalg.norm(vec)
         
         return vec # 回傳 512 維的特徵向量 
+
+    def score(self, vec1, vec2):
+        raw_score = float(np.dot(vec1, vec2))
+        if self.cohort_matrix is None:
+            return {
+                "raw_score": raw_score,
+                "snorm_score": None,
+            }
+
+        scores1 = np.dot(self.cohort_matrix, vec1)
+        scores2 = np.dot(self.cohort_matrix, vec2)
+        mean1, std1 = np.mean(scores1), np.std(scores1)
+        mean2, std2 = np.mean(scores2), np.std(scores2)
+        norm_score1 = (raw_score - mean1) / (std1 + 1e-6)
+        norm_score2 = (raw_score - mean2) / (std2 + 1e-6)
+
+        return {
+            "raw_score": raw_score,
+            "snorm_score": float((norm_score1 + norm_score2) / 2.0),
+        }

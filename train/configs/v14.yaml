@@ -1,0 +1,25 @@
+data:
+  manifest: data/sample_manifest.jsonl
+  data_root: data/wavs
+
+output:
+  dir: outputs/v14
+
+training:
+  seed: 42
+  epochs: 100
+  batch_size: 256
+  learning_rate: 0.001
+  num_workers: 4
+  weight_decay: 0.0001
+
+augmentation:
+  musan_path: null
+  rir_path: null
+
+evaluation:
+  checkpoint: outputs/v14/best_model_plus_v14.pth
+  split: test
+  num_spks: 50
+  utts_per_spk: 10
+  rounds: 10
