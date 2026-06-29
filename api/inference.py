@@ -11,7 +11,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 train_dir = os.path.join(current_dir, '..', 'train')
 sys.path.append(train_dir)
 
-from se_model import XVector
+from model import XVector
 
 class SpeakerEncoder:
     def __init__(self, model_path, num_classes, input_dim=80, cohort_path=None):
