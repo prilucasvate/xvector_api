@@ -74,3 +74,5 @@
     python app.py
     ```
     啟動後，開啟 http://localhost:8000/docs 即可進入測試介面。
+
+專題報告請參考：[專題報告](https://drive.google.com/file/d/16tDdwHMnC_KDVlm-tn-47ZwR74Qh9EY2/view?usp=drive_link)
