@@ -13,7 +13,13 @@ outputs/
 
 # datasets
 *.wav
+!sdk/web/test/*.wav
 
 train/configs/debug.yaml
 train/configs/mine.yaml
 .env
+# ONNX exports (publish via GitHub Releases)
+mobile/*.onnx
+
+mobile/cohort.bin
+sdk/web/node_modules/
