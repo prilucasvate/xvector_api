@@ -19,6 +19,26 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { viewBinding = true }
+    buildTypes {
+        release {
+            // R8 移除未使用的 AndroidX / Material 程式碼
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+    // 壓縮 libonnxruntime.so (約 17 MB -> 7 MB)，安裝時才解壓
+    packaging { jniLibs { useLegacyPackaging = true } }
+    // ONNX Runtime 預設包含 4 種 CPU 架構的原生函式庫，依架構拆成獨立 APK：
+    // arm64-v8a 給實體手機，x86_64 給模擬器
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
     // ONNX 模型壓縮效果有限，不壓縮可直接 mmap 讀取
     androidResources { noCompress += listOf("onnx", "bin") }
     sourceSets["main"].assets.srcDirs(layout.buildDirectory.dir("generated/model-assets"))

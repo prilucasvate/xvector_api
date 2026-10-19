@@ -9,7 +9,7 @@
 ```bash
 cd mobile && python export_onnx.py        # 產生 xvector_v14.onnx 與 cohort.bin (會自動打包進 Demo App)
 cd ../sdk/android
-./gradlew :demo:assembleDebug             # demo/build/outputs/apk/debug/demo-debug.apk
+./gradlew :demo:assembleRelease           # demo/build/outputs/apk/release/demo-arm64-v8a-release-unsigned.apk
 ./gradlew :xvector:assembleRelease        # xvector/build/outputs/aar/xvector-release.aar
 ```
 
@@ -38,6 +38,8 @@ python tools/make_golden.py                # 用 PyTorch 產生參考結果 (含
 | 3 秒音訊推論時間 | 約 70–80 ms |
 
 ## 注意事項
-* Demo APK 約 109 MB，主要是 ONNX Runtime 各 CPU 架構的原生函式庫與 28 MB 的模型；
-  正式 App 可用 `abiFilters` 只保留 `arm64-v8a`，或改用 int8 模型。
+* Demo APK 依 CPU 架構拆分：`arm64-v8a` 給實體手機、`x86_64` 給模擬器。
+  release 版啟用 R8 並壓縮 `libonnxruntime.so`，arm64 APK 約 38 MB (原本 109 MB)，其中模型佔 28 MB。
+  若需要更小，可改用 int8 模型 (7 MB)，但對 EER 的影響尚未評估。
+* App 使用 R8 時需保留 ONNX Runtime 的 JNI 類別，library 已透過 `consumer-rules.pro` 自動帶入。
 * 錄音使用 `VOICE_RECOGNITION` 音源，關閉大部分降噪與自動增益，較接近訓練資料。
