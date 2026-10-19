@@ -23,3 +23,6 @@ mobile/*.onnx
 
 mobile/cohort.bin
 sdk/web/node_modules/
+sdk/android/.gradle/
+sdk/android/**/build/
+sdk/android/local.properties
