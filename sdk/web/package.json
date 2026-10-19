@@ -1,0 +1,17 @@
+{
+  "name": "xvector-web",
+  "version": "0.1.0",
+  "description": "X-Vector speaker embedding & verification in the browser (ONNX Runtime Web / WASM)",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "files": ["src"],
+  "scripts": {
+    "test": "node test/test.js",
+    "demo": "node demo/serve.js"
+  },
+  "dependencies": {
+    "onnxruntime-web": "1.20.1"
+  },
+  "license": "MIT"
+}
