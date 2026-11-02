@@ -1,0 +1,32 @@
+# 以 XcodeGen 產生 Xcode 專案：brew install xcodegen && xcodegen
+name: XVectorDemo
+options:
+  bundleIdPrefix: tw.xvector
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  XVector:
+    path: ..
+targets:
+  XVectorDemo:
+    type: application
+    platform: iOS
+    sources:
+      - XVectorDemo
+      # mobile/export_onnx.py 產生的模型與 cohort
+      - path: ../../../mobile/xvector_v14.onnx
+        buildPhase: resources
+      - path: ../../../mobile/cohort.bin
+        buildPhase: resources
+    dependencies:
+      - package: XVector
+    info:
+      path: XVectorDemo/Info.plist
+      properties:
+        CFBundleDisplayName: X-Vector 語者比對
+        UILaunchScreen: {}
+        NSMicrophoneUsageDescription: 錄製語音以比對是否為同一人，音訊只在手機上處理。
+    settings:
+      base:
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic

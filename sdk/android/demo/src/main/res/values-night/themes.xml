@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.XVector" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#6B9CFF</item>
+    </style>
+    <color name="ok">#4CC382</color>
+    <color name="bad">#FF8A5C</color>
+</resources>
